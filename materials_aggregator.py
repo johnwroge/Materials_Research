@@ -26,20 +26,16 @@ class MaterialsResearchAggregator:
                         the MATERIALS_PROJECT_API_KEY environment variable.
         """
         if api_key is None:
-            # First try environment variable
             api_key = os.environ.get('MATERIALS_PROJECT_API_KEY')
             
-            # If not found, try to read from .env file directly
             if api_key is None:
                 try:
-                    # Try current directory
                     env_path = os.path.join(os.getcwd(), '.env')
                     if os.path.exists(env_path):
                         with open(env_path, 'r') as f:
                             for line in f:
                                 if line.startswith('MATERIALS_PROJECT_API_KEY='):
                                     api_key = line.strip().split('=', 1)[1]
-                                    # Remove quotes if present
                                     api_key = api_key.strip("'").strip('"')
                                     break
                 except Exception as e:
@@ -66,20 +62,20 @@ class MaterialsResearchAggregator:
         Returns:
             pandas.DataFrame: Materials data
         """
-        # These are the fields that are actually available according to the error message
+
         if properties is None:
             properties = [
                 "material_id",
-                "formula_pretty",  # Instead of "formula"
+                "formula_pretty", 
                 "formation_energy_per_atom",
                 "energy_above_hull",
                 "band_gap",
                 "density",
-                "bulk_modulus",    # Instead of "elasticity.k_vrh"
-                "shear_modulus",   # Instead of "elasticity.g_vrh"
+                "bulk_modulus",  
+                "shear_modulus",   
                 "total_magnetization",
                 "e_electronic",
-                "ordering"         # Instead of "magnetic_ordering"
+                "ordering"        
             ]
         
         # Create a chemsys string (e.g., "Li-Fe-O")
@@ -194,7 +190,7 @@ class MaterialsResearchAggregator:
         Returns:
             pandas.DataFrame: Stable materials data
         """
-        # Create base criteria
+
         criteria = {
             "elements": {"$all": elements},
             "energy_above_hull": {"$lte": energy_above_hull_max}
@@ -217,7 +213,6 @@ class MaterialsResearchAggregator:
         results = self.mpr.query(criteria, properties)
         df = pd.DataFrame(results)
         
-        # Handle nested properties
         if "spacegroup.symbol" in df.columns:
             df["spacegroup"] = df["spacegroup"].apply(lambda x: x.get("symbol") if x else None)
         
@@ -250,13 +245,10 @@ class MaterialsResearchAggregator:
         Returns:
             dict: Material data
         """
-        # Get comprehensive data for the material using the new API
         try:
-            # Fetch the material using the new API
             material_doc = self.mpr.materials.summary.get_data_by_id(material_id)
             material_data = material_doc.dict()
             
-            # Print basic information
             print("\n" + "="*50)
             print(f"Material ID: {material_id}")
             print(f"Formula: {material_data.get('formula_pretty', 'N/A')}")
@@ -336,7 +328,7 @@ def main():
         df = aggregator.search_materials(elements, num_results=args.limit)
         
         print(f"\nFound {len(df)} materials containing {', '.join(elements)}:")
-        # Use formula_pretty instead of formula
+
         print(tabulate(df[['material_id', 'formula_pretty', 'formation_energy_per_atom', 
                          'energy_above_hull', 'band_gap']], 
                        headers='keys', tablefmt='psql'))
@@ -363,7 +355,6 @@ def main():
         )
         
         print(f"\nFound {len(df)} stable materials containing {', '.join(elements)}:")
-        # Use formula_pretty instead of formula
         print(tabulate(df[['material_id', 'formula_pretty', 'formation_energy_per_atom', 
                          'energy_above_hull', 'band_gap']], 
                        headers='keys', tablefmt='psql'))
