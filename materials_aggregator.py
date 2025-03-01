@@ -8,6 +8,7 @@ from pymatgen.ext.matproj import MPRester
 from pymatgen.core import Composition
 from pymatgen.analysis.phase_diagram import PhaseDiagram, PDPlotter
 from tabulate import tabulate
+from mp_api.client import MPRester
 
 
 class MaterialsResearchAggregator:
@@ -22,21 +23,40 @@ class MaterialsResearchAggregator:
         
         Args:
             api_key (str): Materials Project API key. If None, will try to use
-                          the MATERIALS_PROJECT_API_KEY environment variable.
+                        the MATERIALS_PROJECT_API_KEY environment variable.
         """
         if api_key is None:
+            # First try environment variable
             api_key = os.environ.get('MATERIALS_PROJECT_API_KEY')
+            
+            # If not found, try to read from .env file directly
+            if api_key is None:
+                try:
+                    # Try current directory
+                    env_path = os.path.join(os.getcwd(), '.env')
+                    if os.path.exists(env_path):
+                        with open(env_path, 'r') as f:
+                            for line in f:
+                                if line.startswith('MATERIALS_PROJECT_API_KEY='):
+                                    api_key = line.strip().split('=', 1)[1]
+                                    # Remove quotes if present
+                                    api_key = api_key.strip("'").strip('"')
+                                    break
+                except Exception as e:
+                    print(f"Error reading .env file: {e}")
+                    
             if api_key is None:
                 raise ValueError(
                     "No API key provided. Either pass an API key or set the "
-                    "MATERIALS_PROJECT_API_KEY environment variable."
+                    "MATERIALS_PROJECT_API_KEY environment variable or create a .env file."
                 )
         
         self.mpr = MPRester(api_key)
-        
+
+
     def search_materials(self, elements, properties=None, num_results=10):
         """
-        Search for materials containing specific elements.
+        Search for materials containing specific elements using the MP API.
         
         Args:
             elements (list): List of element symbols to search for
@@ -46,40 +66,39 @@ class MaterialsResearchAggregator:
         Returns:
             pandas.DataFrame: Materials data
         """
+        # These are the fields that are actually available according to the error message
         if properties is None:
             properties = [
                 "material_id",
-                "formula",
+                "formula_pretty",  # Instead of "formula"
                 "formation_energy_per_atom",
                 "energy_above_hull",
                 "band_gap",
                 "density",
-                "elasticity.K_VRH",  # Bulk modulus
-                "elasticity.G_VRH",  # Shear modulus
+                "bulk_modulus",    # Instead of "elasticity.k_vrh"
+                "shear_modulus",   # Instead of "elasticity.g_vrh"
                 "total_magnetization",
                 "e_electronic",
-                "magnetic_ordering"
+                "ordering"         # Instead of "magnetic_ordering"
             ]
         
-        # Create a criteria dict based on the elements
-        criteria = {"elements": {"$all": elements}}
+        # Create a chemsys string (e.g., "Li-Fe-O")
+        chemsys = "-".join(elements)
         
-        # Query the Materials Project database
-        results = self.mpr.query(criteria, properties, limit=num_results)
+        # Fetch data using the API with correct field names
+        docs = self.mpr.materials.summary.search(
+            chemsys=chemsys,
+            fields=properties
+        )
         
-        # Convert to DataFrame for easier manipulation
+        # Convert documents to dictionaries and limit results
+        results = [doc.dict() for doc in docs][:num_results]
+        
+        # Convert to DataFrame
         df = pd.DataFrame(results)
         
-        # Handle nested properties (like elasticity)
-        for col in df.columns:
-            if "." in col:
-                # For nested properties, extract the value and create a new column
-                base, nested = col.split(".", 1)
-                if base in df.columns and isinstance(df[base].iloc[0], dict):
-                    df[col] = df[base].apply(lambda x: x.get(nested) if x else None)
-        
         return df
-    
+
     def get_phase_diagram(self, elements):
         """
         Generate a phase diagram for a set of elements.
@@ -231,43 +250,51 @@ class MaterialsResearchAggregator:
         Returns:
             dict: Material data
         """
-        # Get comprehensive data for the material
-        material_data = self.mpr.get_data(material_id)[0]
-        
-        # Print basic information
-        print("\n" + "="*50)
-        print(f"Material ID: {material_id}")
-        print(f"Formula: {material_data.get('pretty_formula', 'N/A')}")
-        print(f"Spacegroup: {material_data['spacegroup'].get('symbol') if 'spacegroup' in material_data else 'N/A'}")
-        print(f"Crystal System: {material_data['spacegroup'].get('crystal_system') if 'spacegroup' in material_data else 'N/A'}")
-        print("-"*50)
-        
-        # Print thermodynamic properties
-        print("Thermodynamic Properties:")
-        print(f"  Formation Energy per Atom: {material_data.get('formation_energy_per_atom', 'N/A'):.4f} eV/atom")
-        print(f"  Energy Above Hull: {material_data.get('energy_above_hull', 'N/A'):.4f} eV/atom")
-        print(f"  Density: {material_data.get('density', 'N/A'):.2f} g/cm³")
-        print("-"*50)
-        
-        # Print electronic properties
-        print("Electronic Properties:")
-        print(f"  Band Gap: {material_data.get('band_gap', 'N/A'):.2f} eV")
-        print(f"  Is Metal: {'Yes' if material_data.get('is_metal', False) else 'No'}")
-        print("-"*50)
-        
-        # Print mechanical properties if available
-        if 'elasticity' in material_data and material_data['elasticity']:
-            print("Mechanical Properties:")
-            elasticity = material_data['elasticity']
-            print(f"  Bulk Modulus (K_VRH): {elasticity.get('K_VRH', 'N/A')} GPa")
-            print(f"  Shear Modulus (G_VRH): {elasticity.get('G_VRH', 'N/A')} GPa")
-            print(f"  Poisson Ratio: {elasticity.get('poisson_ratio', 'N/A')}")
-        print("="*50)
-        
-        return material_data
+        # Get comprehensive data for the material using the new API
+        try:
+            # Fetch the material using the new API
+            material_doc = self.mpr.materials.summary.get_data_by_id(material_id)
+            material_data = material_doc.dict()
+            
+            # Print basic information
+            print("\n" + "="*50)
+            print(f"Material ID: {material_id}")
+            print(f"Formula: {material_data.get('formula_pretty', 'N/A')}")
+            if 'symmetry' in material_data and material_data['symmetry']:
+                print(f"Spacegroup: {material_data['symmetry'].get('symbol', 'N/A')}")
+                print(f"Crystal System: {material_data['symmetry'].get('crystal_system', 'N/A')}")
+            print("-"*50)
+            
+            # Print thermodynamic properties
+            print("Thermodynamic Properties:")
+            print(f"  Formation Energy per Atom: {material_data.get('formation_energy_per_atom', 'N/A')} eV/atom")
+            print(f"  Energy Above Hull: {material_data.get('energy_above_hull', 'N/A')} eV/atom")
+            print(f"  Density: {material_data.get('density', 'N/A')} g/cm³")
+            print("-"*50)
+            
+            # Print electronic properties
+            print("Electronic Properties:")
+            print(f"  Band Gap: {material_data.get('band_gap', 'N/A')} eV")
+            print(f"  Is Metal: {'Yes' if material_data.get('is_metal', False) else 'No'}")
+            print("-"*50)
+            
+            # Print mechanical properties if available
+            if 'bulk_modulus' in material_data and material_data['bulk_modulus']:
+                print("Mechanical Properties:")
+                print(f"  Bulk Modulus: {material_data.get('bulk_modulus', 'N/A')} GPa")
+                print(f"  Shear Modulus: {material_data.get('shear_modulus', 'N/A')} GPa")
+            print("="*50)
+            
+            return material_data
+            
+        except Exception as e:
+            print(f"Error retrieving material data: {e}")
+            print("Try using the Materials Project website to view details: https://materialsproject.org/materials/{material_id}")
+            return None
 
 
 def main():
+    
     parser = argparse.ArgumentParser(description='Materials Research Aggregator')
     subparsers = parser.add_subparsers(dest='command', help='Command to run')
     
@@ -309,9 +336,10 @@ def main():
         df = aggregator.search_materials(elements, num_results=args.limit)
         
         print(f"\nFound {len(df)} materials containing {', '.join(elements)}:")
-        print(tabulate(df[['material_id', 'formula', 'formation_energy_per_atom', 
+        # Use formula_pretty instead of formula
+        print(tabulate(df[['material_id', 'formula_pretty', 'formation_energy_per_atom', 
                          'energy_above_hull', 'band_gap']], 
-                     headers='keys', tablefmt='psql'))
+                       headers='keys', tablefmt='psql'))
         
         if args.output:
             aggregator.export_to_csv(df, args.output)
@@ -335,9 +363,10 @@ def main():
         )
         
         print(f"\nFound {len(df)} stable materials containing {', '.join(elements)}:")
-        print(tabulate(df[['material_id', 'formula', 'formation_energy_per_atom', 
-                         'energy_above_hull', 'band_gap', 'spacegroup']], 
-                     headers='keys', tablefmt='psql'))
+        # Use formula_pretty instead of formula
+        print(tabulate(df[['material_id', 'formula_pretty', 'formation_energy_per_atom', 
+                         'energy_above_hull', 'band_gap']], 
+                       headers='keys', tablefmt='psql'))
         
         if args.output:
             aggregator.export_to_csv(df, args.output)
