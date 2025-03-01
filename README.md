@@ -187,7 +187,41 @@ properties = [
 ]
 
 df = aggregator.search_materials(['Ti', 'O'], properties=properties)
+
 ```
+
+## Using Docker
+
+The Materials Research Aggregator can also be run using Docker for a consistent, isolated environment.
+
+### Prerequisites
+- Docker installed on your system ([Get Docker](https://docs.docker.com/get-docker/))
+
+### Build the Docker Image
+
+```bash
+# Navigate to the project directory
+cd materials-research-aggregator
+
+# Build the Docker image
+docker build -t materials-aggregator .
+```
+
+### Run the Tool with Docker
+
+```bash
+# Basic usage with API key
+docker run -e MATERIALS_PROJECT_API_KEY='your_api_key' materials-aggregator search Li,O
+
+# Find stable materials
+docker run -e MATERIALS_PROJECT_API_KEY='your_api_key' materials-aggregator stable Li,Fe,O --hull 0.05
+
+# Save results to your local machine using volume mounting
+docker run -v $(pwd)/output:/app/output \
+  -e MATERIALS_PROJECT_API_KEY='your_api_key' \
+  materials-aggregator search Li,O --output /app/output/results.csv
+```
+
 
 ## Contributing
 
