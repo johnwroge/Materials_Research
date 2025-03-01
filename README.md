@@ -62,16 +62,28 @@ The quickstart script will automatically install all required dependencies:
 - **tabulate** - Formatted table output
 - **numpy & scipy** - Scientific computing
 
-## Getting Started
+## API Key Setup
 
-### API Key Setup
+The Materials Project API key can be set up in several ways:
 
-Before using the tool, you need to obtain a Materials Project API key:
+### Option 1: Using a .env file (Recommended)
+Create a `.env` file in your project directory:
 
-1. Register at [Materials Project](https://materialsproject.org/)
-2. Go to your dashboard and get your API key
-3. Set it as an environment variable:
+```
+# .env file
+MATERIALS_PROJECT_API_KEY=your_api_key_here
+```
 
+A `.env.example` file is provided as a template. Just copy it and add your key:
+
+```bash
+cp .env.example .env
+# Then edit .env with your API key
+```
+
+The `.env` file is included in `.gitignore` to prevent accidentally sharing your API key.
+
+### Option 2: Environment variable
 ```bash
 # On Linux/Mac
 export MATERIALS_PROJECT_API_KEY='your_api_key'
@@ -82,6 +94,10 @@ set MATERIALS_PROJECT_API_KEY=your_api_key
 # On Windows (PowerShell)
 $env:MATERIALS_PROJECT_API_KEY='your_api_key'
 ```
+
+### Getting an API Key
+1. Register at [Materials Project](https://materialsproject.org/)
+2. Go to your dashboard and get your API key
 
 ### Basic Usage
 

@@ -1,0 +1,53 @@
+# Environment variables
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Generated files
+*.csv
+*.log
+*.png
+*.pdf
+temp/
+output/
+cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# Local configuration
+config.local.json
